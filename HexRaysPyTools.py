@@ -47,6 +47,9 @@ def hexrays_events_callback(*args):
         if Actions.CreateNewField.check(hx_view.cfunc, item):
             idaapi.attach_action_to_popup(form, popup, Actions.CreateNewField.name, None)
 
+        if Actions.FuncSigFromName.check(hx_view.cfunc, item):
+            idaapi.attach_action_to_popup(form, popup, Actions.FuncSigFromName.name, None)
+
         if item.citype == idaapi.VDI_FUNC:
             # If we clicked on function
             if not hx_view.cfunc.entry_ea == idaapi.BADADDR:  # Probably never happen
@@ -182,6 +185,7 @@ class MyPlugin(idaapi.plugin_t):
         Actions.register(Actions.ShowClasses)
         Actions.register(Actions.GetStructureBySize)
         Actions.register(Actions.RemoveArgument)
+        Actions.register(Actions.FuncSigFromName)
         Actions.register(Actions.AddRemoveReturn)
         Actions.register(Actions.ConvertToUsercall)
         Actions.register(Actions.ShallowScanVariable, Helper.temporary_structure)
@@ -223,6 +227,7 @@ class MyPlugin(idaapi.plugin_t):
         Actions.unregister(Actions.ShowGraph)
         Actions.unregister(Actions.ShowClasses)
         Actions.unregister(Actions.GetStructureBySize)
+        Actions.unregister(Actions.FuncSigFromName)
         Actions.unregister(Actions.RemoveArgument)
         Actions.unregister(Actions.AddRemoveReturn)
         Actions.unregister(Actions.ConvertToUsercall)
