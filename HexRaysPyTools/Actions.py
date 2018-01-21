@@ -243,6 +243,11 @@ class FuncSigFromName(idaapi.action_handler_t):
             print "[ERROR] Failed to parse function declaration:", func_decl
             return
 
+        for enum in re.findall(r'enum \s+([A-Za-z0-9:_]+)', func_decl):
+            if idaapi.get_enum(enum) == idaapi.BADADDR:
+                idaapi.add_enum(idaapi.get_enum_qty(), enum, idaapi.hexflag())
+                print '[INFO] Created enum stub:', enum
+
         func_data = idaapi.func_type_data_t()
         if not func_tinfo.get_func_details(func_data):
             print "[ERROR] Failed to get function details:", func_decl
