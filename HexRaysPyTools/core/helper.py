@@ -195,6 +195,16 @@ def search_duplicate_fields(udt_data):
     return [indices for indices in default_dict.values() if len(indices) > 1]
 
 
+def search_duplicate_args(func_data):
+    # Returns list of lists with duplicate args
+
+    default_dict = collections.defaultdict(list)
+    for idx, func_arg in enumerate(func_data):
+        if func_arg.name:
+            default_dict[func_arg.name].append(idx)
+    return [indices for indices in default_dict.values() if len(indices) > 1]
+
+
 def get_member_name(tinfo, offset):
     udt_member = idaapi.udt_member_t()
     udt_member.offset = offset * 8

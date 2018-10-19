@@ -55,6 +55,9 @@ def hexrays_events_callback(*args):
         if actions.CreateNewField.check(hx_view.cfunc, item):
             idaapi.attach_action_to_popup(form, popup, actions.CreateNewField.name, None)
 
+        if actions.FuncSigFromName.check(hx_view.cfunc, item):
+            idaapi.attach_action_to_popup(form, popup, actions.FuncSigFromName.name, None)
+
         if actions.FindFieldXrefs.check(item):
             idaapi.attach_action_to_popup(form, popup, actions.FindFieldXrefs.name, None)
 
@@ -200,6 +203,7 @@ class MyPlugin(idaapi.plugin_t):
         actions.register(actions.ShowGraph)
         actions.register(actions.ShowClasses)
         actions.register(actions.GetStructureBySize)
+        actions.register(actions.FuncSigFromName)
         actions.register(actions.RemoveArgument)
         actions.register(actions.AddRemoveReturn)
         actions.register(actions.ConvertToUsercall)
@@ -246,6 +250,7 @@ class MyPlugin(idaapi.plugin_t):
         actions.unregister(actions.ShowGraph)
         actions.unregister(actions.ShowClasses)
         actions.unregister(actions.GetStructureBySize)
+        actions.unregister(actions.FuncSigFromName)
         actions.unregister(actions.RemoveArgument)
         actions.unregister(actions.AddRemoveReturn)
         actions.unregister(actions.ConvertToUsercall)

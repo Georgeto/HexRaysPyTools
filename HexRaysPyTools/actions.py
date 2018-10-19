@@ -270,6 +270,140 @@ class GetStructureBySize(idaapi.action_handler_t):
         return idaapi.AST_DISABLE_FOR_FORM
 
 
+class FuncSigFromName(idaapi.action_handler_t):
+
+    name = "my:FuncSigFromName"
+    description = "Set function signature from name"
+    hotkey = "shift+c"
+
+    def __init__(self):
+        idaapi.action_handler_t.__init__(self)
+
+    @staticmethod
+    def check(cfunc, ctree_item):
+        if ctree_item.citype == idaapi.VDI_FUNC:
+            return cfunc.entry_ea
+        elif ctree_item.citype == idaapi.VDI_EXPR:
+            if ctree_item.e.op == idaapi.cot_obj:
+                return ctree_item.e.obj_ea
+            elif ctree_item.e.op == idaapi.cot_call:
+                if ctree_item.e.x.op == idaapi.cot_obj:
+                    return ctree_item.e.x.obj_ea
+        return None
+
+    def activate(self, ctx):
+        hx_view = idaapi.get_widget_vdui(ctx.widget)
+        ea = self.check(hx_view.cfunc, hx_view.item)
+        if ea is None:
+            return
+
+        func_ea_name = idaapi.get_ea_name(ea)
+        func_decl = idc.Demangle(func_ea_name, idc.GetLongPrm(idc.INF_LONG_DN) | const.MNG_NOPOSTFC | const.MNG_NOSCTYP | const.MNG_NOSTVIR)
+        if not func_decl:
+            print "[ERROR] Failed to demangle function name:", func_ea_name
+            return
+
+        # return type for constructors/destructors
+        if func_decl.startswith('__thiscall'):
+            func_decl = 'void ' + func_decl
+
+        func_tinfo = idaapi.tinfo_t()
+        func_name = idaapi.calc_c_cpp_name4(func_ea_name, func_tinfo, idaapi.CCN_CPP)
+
+        # func_decl = re.sub("^(class |struct |enum )", "", func_decl)
+        func_decl = re.sub("<(class |struct |enum )?", "_", func_decl).replace(">", "")
+        #if "__thiscall" in func_decl:
+        #    class_name = re.sub("::.*", "", func_name)
+        #    func_decl = func_decl.replace("(", "(class " + class_name + " * this, ", 1)
+
+        # cleanup operators
+        func_decl = re.sub(r'::operator(\(\)|\[\]|->|[.+&*-/=<>^!~]{1,2})', '::operator', func_decl)
+
+        # cleanup destructor
+        func_decl = re.sub(r'::~', '::', func_decl)
+
+        if idaapi.parse_decl(func_tinfo, idaapi.cvar.idati, func_decl + ";", idaapi.PT_HIGH | idaapi.PT_LOWER) is None:
+            print "[ERROR] Failed to parse function declaration:", func_decl
+            return
+
+        # create enum stub on demand
+        for enum in re.findall(r'enum \s+([A-Za-z0-9:_]+)', func_decl):
+            if idaapi.get_enum(enum) == idaapi.BADADDR:
+                idaapi.add_enum(idaapi.get_enum_qty(), enum, idaapi.hexflag())
+                print '[INFO] Created enum stub:', enum
+
+        func_data = idaapi.func_type_data_t()
+        if not func_tinfo.get_func_details(func_data):
+            print "[ERROR] Failed to get function details:", func_decl
+            return
+
+        '''is_thiscall = func_data.cc & idaapi.CM_CC_MASK == idaapi.CM_CC_THISCALL
+        if is_thiscall:
+            func_data[0].flags |= idaapi.FAI_HIDDEN
+
+        if func_data.rettype.is_decl_struct():
+            ret_ptr_arg = idaapi.funcarg_t()
+            ret_ptr_arg.type = func_data.rettype.create_ptr(func_data.rettype)
+            ret_ptr_arg.name = "o_pRetVal"
+            ret_ptr_arg.flags = idaapi.FAI_RETPTR
+            func_data.insert(ret_ptr_arg, 1 if is_thiscall else 0)'''
+
+        # remove falsely detected hidden this pointer
+        is_thiscall = func_data.cc & idaapi.CM_CC_MASK == idaapi.CM_CC_THISCALL
+        if len(func_data) >= 1 and not is_thiscall and func_data[0].flags & idaapi.FAI_HIDDEN and func_data[0].name == 'this':
+            func_data.erase(func_data.begin())
+
+        for farg in func_data:
+            if farg.name:
+                print "has name", farg.name
+                continue
+
+            if farg.type.is_ptr():
+                ptr_data = idaapi.ptr_type_data_t()
+                if farg.type.get_ptr_details(ptr_data):
+                    if ptr_data.obj_type.is_decl_udt():
+                        type_name = ptr_data.obj_type._print()
+                        type_name = re.sub("^(const )?(class |struct )", "", type_name)
+                        prefix = "a_p"
+                        if re.match("^bT[^\W_]+Array_", type_name):
+                            type_name = re.sub("^bT[^\W_]+Array_", "", type_name)
+                            prefix = "a_arr"
+                        elif re.match("^bT[^\W_]+Map_", type_name):
+                            type_name = re.sub("^bT[^\W_]+Map_", "", type_name)
+                            prefix = "a_map"
+
+                        if re.match("^[geb][CS]", type_name):
+                            type_name = re.sub("_PS$", "", type_name)
+                            farg.name = prefix + type_name[2:]
+
+                        '''print 'PRTYPE_1LINE', ptr_data.obj_type._print(None, idaapi.PRTYPE_1LINE)
+                        print 'PRTYPE_MULTI', ptr_data.obj_type._print(None, idaapi.PRTYPE_MULTI)
+                        print 'PRTYPE_TYPE', ptr_data.obj_type._print(None, idaapi.PRTYPE_TYPE)
+                        print 'PRTYPE_PRAGMA', ptr_data.obj_type._print(None, idaapi.PRTYPE_PRAGMA)
+                        print 'PRTYPE_SEMI', ptr_data.obj_type._print(None, idaapi.PRTYPE_SEMI)
+                        print 'PRTYPE_CPP', ptr_data.obj_type._print(None, idaapi.PRTYPE_CPP)
+                        print 'PRTYPE_DEF', ptr_data.obj_type._print(None, idaapi.PRTYPE_DEF)
+                        print 'PRTYPE_NOARGS', ptr_data.obj_type._print(None, idaapi.PRTYPE_NOARGS)
+                        print 'PRTYPE_NOARRS', ptr_data.obj_type._print(None, idaapi.PRTYPE_NOARRS)
+                        print 'PRTYPE_NORES', ptr_data.obj_type._print(None, idaapi.PRTYPE_NORES)'''
+            elif farg.type.is_decl_enum():
+                type_name = farg.type._print()
+                if re.match("^[geb]E", type_name):
+                    farg.name = "a_enu" + type_name[2:]
+
+        for group in helper.search_duplicate_args(func_data):
+            for occ, arg in enumerate(group, 1):
+                func_data[arg].name += str(occ)
+
+        func_tinfo.create_func(func_data)
+        print func_tinfo._print(func_name)
+        if idaapi.apply_tinfo2(ea, func_tinfo, idaapi.TINFO_DEFINITE):
+            hx_view.refresh_view(True)
+
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_ALWAYS
+
+
 class ShallowScanVariable(idaapi.action_handler_t):
 
     name = "my:ShallowScanVariable"

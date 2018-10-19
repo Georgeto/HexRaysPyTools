@@ -27,6 +27,10 @@ DUMMY_FUNC = None
 
 LEGAL_TYPES = []
 
+MNG_NOPOSTFC = 0x00000200
+MNG_NOSCTYP = 0x00000400
+MNG_NOSTVIR = 0x00001000
+
 
 def init():
     """ All tinfo should be reinitialized between session. Otherwise they could have wrong type """
