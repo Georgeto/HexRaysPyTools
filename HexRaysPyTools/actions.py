@@ -5,6 +5,7 @@ import logging
 
 import idaapi
 import idc
+import idautils
 
 import HexRaysPyTools.forms as forms
 import HexRaysPyTools.core.const as const
@@ -293,10 +294,10 @@ class FuncSigFromName(idaapi.action_handler_t):
 
     def activate(self, ctx):
         hx_view = idaapi.get_widget_vdui(ctx.widget)
-        ea = self.check(hx_view.cfunc, hx_view.item)
-        if ea is None:
-            return
+        FuncSigFromName.make_func_tinfo(self.check(hx_view.cfunc, hx_view.item), idaapi.TINFO_DEFINITE, hx_view=hx_view)
 
+    @staticmethod
+    def make_func_tinfo(ea, apply_flags=idaapi.TINFO_GUESSED, hx_view=None):
         func_ea_name = idaapi.get_ea_name(ea)
         func_decl = idc.Demangle(func_ea_name, idc.GetLongPrm(idc.INF_LONG_DN) | const.MNG_NOPOSTFC | const.MNG_NOSCTYP | const.MNG_NOSTVIR)
         if not func_decl:
@@ -424,8 +425,42 @@ class FuncSigFromName(idaapi.action_handler_t):
 
         func_tinfo.create_func(func_data)
         print func_tinfo._print(func_name)
-        if idaapi.apply_tinfo2(ea, func_tinfo, idaapi.TINFO_DEFINITE):
+        if idaapi.apply_tinfo2(ea, func_tinfo, apply_flags) and hx_view is not None:
             hx_view.refresh_view(True)
+
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_ALWAYS
+
+
+class FuncSigFromNameAll(idaapi.action_handler_t):
+
+    name = "my:FuncSigFromNameAll"
+    description = "Set function signature from name for all imported and exported functions."
+    hotkey = "ctrl+shift+a"
+
+    def __init__(self):
+        idaapi.action_handler_t.__init__(self)
+
+    def activate(self, ctx):
+        # Exports
+        for i, ordinal, ea, name in idautils.Entries():
+            FuncSigFromName.make_func_tinfo(ea)
+
+        # Imports
+        def imp_cb(ea, name, ord):
+            FuncSigFromName.make_func_tinfo(ea, idaapi.TINFO_DEFINITE)
+            return True
+
+        nimps = idaapi.get_import_module_qty()
+        print "Found %d import(s)..." % nimps
+        for i in xrange(0, nimps):
+            name = idaapi.get_import_module_name(i)
+            if not name:
+                print "Failed to get import module name for #%d" % i
+                continue
+
+            print "Walking-> %s" % name
+            idaapi.enum_import_names(i, imp_cb)
 
     def update(self, ctx):
         return idaapi.AST_ENABLE_ALWAYS
