@@ -311,7 +311,8 @@ class FuncSigFromName(idaapi.action_handler_t):
         func_name = idaapi.calc_c_cpp_name4(func_ea_name, func_tinfo, idaapi.CCN_CPP)
 
         # func_decl = re.sub("^(class |struct |enum )", "", func_decl)
-        func_decl = re.sub("<(class |struct |enum )?", "_", func_decl).replace(">", "")
+        func_decl = re.sub(" *>", "", re.sub("<(class|struct|enum)? *", "_", func_decl))
+
         #if "__thiscall" in func_decl:
         #    class_name = re.sub("::.*", "", func_name)
         #    func_decl = func_decl.replace("(", "(class " + class_name + " * this, ", 1)
