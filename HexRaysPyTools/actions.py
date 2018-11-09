@@ -351,12 +351,38 @@ class FuncSigFromName(idaapi.action_handler_t):
 
         # remove falsely detected hidden this pointer
         is_thiscall = func_data.cc & idaapi.CM_CC_MASK == idaapi.CM_CC_THISCALL
+
         if len(func_data) >= 1 and not is_thiscall and func_data[0].flags & idaapi.FAI_HIDDEN and func_data[0].name == 'this':
             func_data.erase(func_data.begin())
+
+        if func_data.rettype.is_decl_struct():
+            ret_ptr_index = 1 if is_thiscall else 0
+            if ret_ptr_index >= len(func_data) or not (func_data[ret_ptr_index].flags & idaapi.FAI_RETPTR):
+                print('Adding retptr of type', func_data.rettype._print())
+                # create ret_ptr arg type
+                arg_type = idaapi.tinfo_t()
+                arg_type.create_ptr(func_data.rettype)
+
+                ret_ptr_arg = idaapi.funcarg_t()
+                ret_ptr_arg.type = arg_type
+                ret_ptr_arg.name = "o_pRetVal"
+                ret_ptr_arg.flags = idaapi.FAI_RETPTR | idaapi.FAI_STRUCT
+                func_data.insert(func_data.at(ret_ptr_index), ret_ptr_arg)
+
+                # change return type into a poitner
+                new_rettype = func_data.rettype
+                new_rettype.create_ptr(func_data.rettype)
+                func_data.rettype = new_rettype
+            else:
+                print('Already uses retptr', func_data.rettype._print())
 
         for farg in func_data:
             if farg.name:
                 print "has name", farg.name
+                continue
+
+            # skip ret_ptr
+            if farg.flags & idaapi.FAI_RETPTR:
                 continue
 
             if farg.type.is_ptr():
